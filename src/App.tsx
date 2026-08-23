@@ -1,0 +1,49 @@
+import { useState } from 'react';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { TopBar } from '@/components/layout/TopBar';
+import { WorkOrdersPage } from '@/components/workorders/WorkOrdersPage';
+import { PartsPage } from '@/components/parts/PartsPage';
+import { FaqPage } from '@/components/faq/FaqPage';
+import { ClientsPage } from '@/components/clients/ClientsPage';
+import { NewClientWorkOrderModal } from '@/components/workorders/NewClientWorkOrderModal';
+import { useWorkOrders } from '@/hooks/useWorkOrders';
+import { Client } from '@/types';
+import { TabKey } from '@/types/nav';
+
+const TAB_CONTENT: Record<TabKey, { title: string; subtitle: string }> = {
+  'work-orders': { title: 'Ordens de Serviço', subtitle: 'Acompanhe os reparos do recebimento à entrega.' },
+  parts: { title: 'Comparar Peças', subtitle: 'Compare cotações de fornecedores antes de aprovar o reparo.' },
+  faq: { title: 'Guia de Objeções', subtitle: 'Respostas práticas para conversas mais claras com o cliente.' },
+  clients: { title: 'Clientes', subtitle: 'Gerencie clientes e abra reparos mais rápido.' },
+};
+
+function App() {
+  const [activeTab, setActiveTab] = useState<TabKey>('work-orders');
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const { addWorkOrder } = useWorkOrders();
+  const current = TAB_CONTENT[activeTab];
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <div className="md:pl-64 min-h-screen">
+        <TopBar title={current.title} subtitle={current.subtitle} />
+        <main className="px-4 md:px-8 py-6 pb-24 md:pb-8 max-w-[1600px] mx-auto">
+          {activeTab === 'work-orders' && <WorkOrdersPage />}
+          {activeTab === 'parts' && <PartsPage />}
+          {activeTab === 'faq' && <FaqPage />}
+          {activeTab === 'clients' && <ClientsPage onNewWorkOrder={setSelectedClient} />}
+        </main>
+      </div>
+      {selectedClient && (
+        <NewClientWorkOrderModal
+          client={selectedClient}
+          onClose={() => setSelectedClient(null)}
+          onSubmit={addWorkOrder}
+        />
+      )}
+    </div>
+  );
+}
+
+export default App;
