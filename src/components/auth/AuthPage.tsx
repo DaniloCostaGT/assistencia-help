@@ -9,11 +9,13 @@ export function AuthPage() {
   const [orgName, setOrgName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setInfoMessage(null);
 
     try {
       if (isLogin) {
@@ -38,10 +40,22 @@ export function AuthPage() {
           });
 
           if (orgError) throw orgError;
+
+          // Se a sessão não foi criada automaticamente, significa que precisa confirmar o e-mail no Supabase
+          if (!authData.session) {
+            setInfoMessage('Conta criada! Verifique seu e-mail para confirmar o cadastro ou desative a confirmação de e-mail no painel do Supabase.');
+          }
         }
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao realizar autenticação.');
+    } catch (err: unknown) {
+      console.error('Erro de autenticação:', err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (typeof err === 'object' && err !== null && 'error_description' in err) {
+        setError(String((err as { error_description: string }).error_description));
+      } else {
+        setError('Erro ao realizar autenticação.');
+      }
     } finally {
       setLoading(false);
     }
@@ -100,6 +114,12 @@ export function AuthPage() {
             />
           </div>
 
+          {infoMessage && (
+            <p className="text-xs text-amber-300 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+              {infoMessage}
+            </p>
+          )}
+
           {error && (
             <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
               {error}
@@ -123,6 +143,7 @@ export function AuthPage() {
             onClick={() => {
               setIsLogin(!isLogin);
               setError(null);
+              setInfoMessage(null);
             }}
             className="text-blue-400 hover:underline font-semibold ml-1.5"
           >
