@@ -9,6 +9,9 @@ import { NewClientWorkOrderModal } from '@/components/workorders/NewClientWorkOr
 import { useWorkOrders } from '@/hooks/useWorkOrders';
 import { Client } from '@/types';
 import { TabKey } from '@/types/nav';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthPage } from '@/components/auth/AuthPage';
+import { Loader2 } from 'lucide-react';
 
 const TAB_CONTENT: Record<TabKey, { title: string; subtitle: string }> = {
   'work-orders': { title: 'Ordens de Serviço', subtitle: 'Acompanhe os reparos do recebimento à entrega.' },
@@ -17,10 +20,24 @@ const TAB_CONTENT: Record<TabKey, { title: string; subtitle: string }> = {
   clients: { title: 'Clientes', subtitle: 'Gerencie clientes e abra reparos mais rápido.' },
 };
 
-function App() {
+function MainContent() {
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('work-orders');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { addWorkOrder } = useWorkOrders();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   const current = TAB_CONTENT[activeTab];
 
   return (
@@ -46,4 +63,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainContent />
+    </AuthProvider>
+  );
+}

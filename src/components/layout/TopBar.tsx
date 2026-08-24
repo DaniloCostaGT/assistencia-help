@@ -1,5 +1,6 @@
-import { Moon, Sun, Wrench } from 'lucide-react';
+import { Moon, Sun, Wrench, LogOut } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TopBarProps {
   title: string;
@@ -8,6 +9,7 @@ interface TopBarProps {
 
 export function TopBar({ title, subtitle }: TopBarProps) {
   const { theme, toggleTheme } = useTheme();
+  const { signOut, user } = useAuth();
 
   return (
     <header className="sticky top-0 z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800">
@@ -20,6 +22,7 @@ export function TopBar({ title, subtitle }: TopBarProps) {
             Assistência Help
           </span>
         </div>
+
         <div className="hidden md:block">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
             {title}
@@ -30,14 +33,33 @@ export function TopBar({ title, subtitle }: TopBarProps) {
             </p>
           )}
         </div>
-        <button
-          onClick={toggleTheme}
-          className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          aria-label="Alternar tema"
-        >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
+
+        <div className="flex items-center gap-2">
+          {user && (
+            <span className="hidden sm:inline-block text-xs font-medium text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800 pr-3 mr-1">
+              {user.email}
+            </span>
+          )}
+
+          <button
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            aria-label="Alternar tema"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
+          <button
+            onClick={() => signOut()}
+            title="Sair da conta"
+            className="flex h-9 items-center gap-1.5 px-3 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 transition-colors"
+          >
+            <LogOut size={16} />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
+        </div>
       </div>
+
       <div className="px-4 pb-3 md:hidden">
         <h1 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
           {title}
