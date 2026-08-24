@@ -46,12 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Safety Timeout: Força a liberação da tela em no máximo 3.5 segundos se o Supabase não responder
+    // Safety Timeout: Libera o carregamento em no máximo 3 segundos
     const timer = setTimeout(() => {
-      if (isMounted && loading) {
-        setLoading(false);
-      }
-    }, 3500);
+      if (isMounted) setLoading(false);
+    }, 3000);
 
     const initAuth = async () => {
       try {
@@ -65,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetchOrganization(session.user.id);
         }
       } catch (err) {
-        console.error('Erro no getSession:', err);
+        console.error('Erro na inicialização da sessão:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -73,8 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
+
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
+        setOrganizationId(null);
+        setLoading(false);
+        return;
+      }
 
       setSession(session);
       setUser(session?.user ?? null);
@@ -96,11 +102,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     setLoading(true);
-    await supabase.auth.signOut();
-    setOrganizationId(null);
-    setUser(null);
-    setSession(null);
-    setLoading(false);
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Erro ao deslogar:', err);
+    } finally {
+      setUser(null);
+      setSession(null);
+      setOrganizationId(null);
+      setLoading(false);
+      // Redireciona para a raiz para limpar eventuais rotas
+      window.location.href = '/';
+    }
   };
 
   return (

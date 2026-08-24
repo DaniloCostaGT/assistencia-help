@@ -1,4 +1,5 @@
-import { Moon, Sun, Wrench, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Moon, Sun, Wrench, LogOut, Loader2 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -10,6 +11,24 @@ interface TopBarProps {
 export function TopBar({ title, subtitle }: TopBarProps) {
   const { theme, toggleTheme } = useTheme();
   const { signOut, user } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      // Limpa dados salvos localmente
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Chama a função de logout do contexto
+      await signOut();
+    } catch (error) {
+      console.error('Erro ao sair:', error);
+    } finally {
+      // Força o navegador a recarregar na página raiz limpando o estado do React
+      window.location.href = '/';
+    }
+  };
 
   return (
     <header className="sticky top-0 z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800">
@@ -50,12 +69,19 @@ export function TopBar({ title, subtitle }: TopBarProps) {
           </button>
 
           <button
-            onClick={() => signOut()}
+            onClick={handleLogout}
+            disabled={isLoggingOut}
             title="Sair da conta"
-            className="flex h-9 items-center gap-1.5 px-3 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 transition-colors"
+            className="flex h-9 items-center gap-1.5 px-3 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 transition-colors disabled:opacity-50"
           >
-            <LogOut size={16} />
-            <span className="hidden sm:inline">Sair</span>
+            {isLoggingOut ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <LogOut size={16} />
+            )}
+            <span className="hidden sm:inline">
+              {isLoggingOut ? 'Saindo...' : 'Sair'}
+            </span>
           </button>
         </div>
       </div>
