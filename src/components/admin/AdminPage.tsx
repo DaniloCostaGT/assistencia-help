@@ -144,12 +144,16 @@ export function AdminPage() {
             </div>
           </div>
 
-          <a
-            href="/"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold rounded-lg transition-colors border border-slate-700 w-fit"
+          <button
+            type="button"
+            onClick={() => {
+              window.history.pushState({}, '', '/');
+              window.dispatchEvent(new Event('popstate'));
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold rounded-lg transition-colors border border-slate-700 w-fit cursor-pointer"
           >
             <ArrowLeft size={16} /> Voltar ao Sistema
-          </a>
+          </button>
         </div>
 
         {/* Métricas */}
@@ -267,7 +271,6 @@ export function AdminPage() {
 
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {/* Botão de Estender +30 Dias */}
                           <button
                             title="Adicionar +30 dias de uso"
                             onClick={() => handleAddDays(org.id, org.trial_ends_at)}
@@ -276,7 +279,6 @@ export function AdminPage() {
                             <CalendarPlus size={16} />
                           </button>
 
-                          {/* Botão de Bloquear / Desbloquear */}
                           <button
                             title={org.status === 'suspended' ? 'Ativar Conta' : 'Bloquear Conta'}
                             onClick={() => handleUpdateStatus(org.id, org.status === 'suspended' ? 'active' : 'suspended')}
@@ -285,7 +287,6 @@ export function AdminPage() {
                             <Power size={16} />
                           </button>
 
-                          {/* Botão de Deletar Conta */}
                           <button
                             title="Excluir Conta Permanentemente"
                             onClick={() => handleDeleteOrganization(org.id, org.name)}

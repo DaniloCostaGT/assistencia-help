@@ -21,6 +21,9 @@ export function AuthPage() {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+
+        // Dispara evento para atualização da rota SPA sem recarregar a janela
+        window.dispatchEvent(new Event('popstate'));
       } else {
         if (!orgName.trim()) {
           throw new Error('Informe o nome da sua assistência.');
@@ -41,9 +44,10 @@ export function AuthPage() {
 
           if (orgError) throw orgError;
 
-          // Se a sessão não foi criada automaticamente, significa que precisa confirmar o e-mail no Supabase
           if (!authData.session) {
             setInfoMessage('Conta criada! Verifique seu e-mail para confirmar o cadastro ou desative a confirmação de e-mail no painel do Supabase.');
+          } else {
+            window.dispatchEvent(new Event('popstate'));
           }
         }
       }
