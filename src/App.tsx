@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { WorkOrdersPage } from '@/components/workorders/WorkOrdersPage';
@@ -28,8 +28,14 @@ function MainContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('work-orders');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { addWorkOrder } = useWorkOrders();
+  const [path, setPath] = useState(window.location.pathname);
 
-  const currentPath = window.location.pathname;
+  // Escuta alterações na URL sem forçar o reload da janela
+  useEffect(() => {
+    const handlePopState = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   if (loading) {
     return (
@@ -43,14 +49,29 @@ function MainContent() {
     return <AuthPage />;
   }
 
-  // Intercepta a rota /admin para exibir o painel de gestão SaaS
-  if (currentPath === '/admin') {
-    if (user.email === ADMIN_EMAIL) {
+  // Tratamento seguro da rota /admin
+  if (path === '/admin') {
+    const isUserAdmin = user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+    if (isUserAdmin) {
       return <AdminPage />;
-    } else {
-      window.location.href = '/';
-      return null;
     }
+
+    // Se não for admin, altera a URL sem dar re-load na página inteira
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
+        <p className="text-rose-400 font-medium mb-4">Acesso não autorizado para esta conta ({user.email}).</p>
+        <button
+          onClick={() => {
+            window.history.pushState({}, '', '/');
+            setPath('/');
+          }}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+        >
+          Voltar para o Painel
+        </button>
+      </div>
+    );
   }
 
   const current = TAB_CONTENT[activeTab];
