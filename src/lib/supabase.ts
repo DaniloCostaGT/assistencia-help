@@ -11,3 +11,20 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: window.localStorage,
   },
 });
+
+// Função importada pelo NewWorkOrderModal.tsx
+export const buscarAparelhos = async (query: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('devices')
+      .select('*')
+      .ilike('name', `%${query}%`)
+      .limit(10);
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Erro ao buscar aparelhos:', err);
+    return [];
+  }
+};
