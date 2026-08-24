@@ -53,6 +53,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
+    // Trava de segurança: destrava o loading após 3.5s se a Promise do Supabase travar ou o cliente falhar
+    const fallbackTimer = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Verificação de sessão expirou (timeout). Exibindo login.');
+        clearAuthState();
+      }
+    }, 3500);
+
     // 1. Carga inicial de sessão
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
@@ -73,9 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch((err) => {
         console.error('Erro ao verificar sessão:', err);
         if (isMounted) clearAuthState();
+      })
+      .finally(() => {
+        clearTimeout(fallbackTimer);
       });
 
-    // 2. Ouvinte de estado (Sem redirecionamentos abruptos de janela aqui)
+    // 2. Ouvinte de estado
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
 
@@ -95,21 +106,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
+      clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, []);
 
-  // 3. Método de Logout Isolado e Seguro
+  // 3. Método de Logout Isolado
   const signOut = async () => {
     setLoading(true);
 
     try {
-      // Faz o logout apenas no escopo local para evitar travamento de requisição de rede
       await supabase.auth.signOut({ scope: 'local' });
     } catch (error) {
       console.error('Erro ao realizar logout no Supabase:', error);
     } finally {
-      // Limpa cirurgicamente apenas as chaves do Supabase no LocalStorage
       Object.keys(localStorage).forEach((key) => {
         if (key.startsWith('sb-') || key.includes('supabase')) {
           localStorage.removeItem(key);
@@ -117,10 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       sessionStorage.clear();
 
-      // Zera os estados do React
       clearAuthState();
-
-      // Substitui o histórico e recarrega na raiz limpa
       window.location.replace('/');
     }
   };
