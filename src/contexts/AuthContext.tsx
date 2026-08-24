@@ -18,6 +18,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const clearAuthState = () => {
+    setUser(null);
+    setSession(null);
+    setOrganizationId(null);
+    setLoading(false);
+  };
+
   const fetchOrganization = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -30,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.status === 'suspended') {
           alert('Sua conta está suspensa.');
           await supabase.auth.signOut();
-          setOrganizationId(null);
+          clearAuthState();
           return;
         }
         setOrganizationId(data.id);
@@ -46,44 +53,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Timeout de segurança: NUNCA deixa a tela travada no spinner por mais de 2.5s
-    const safetyTimer = setTimeout(() => {
-      if (isMounted && loading) {
-        setLoading(false);
-      }
-    }, 2500);
+    // Obtém sessão inicial tratando falhas de credencial/token
+    supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        if (!isMounted) return;
 
-    // Inicialização da sessão
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
+        if (error || !session) {
+          clearAuthState();
+          return;
+        }
 
-      if (session?.user) {
+        setSession(session);
+        setUser(session.user);
+
         fetchOrganization(session.user.id).finally(() => {
           if (isMounted) setLoading(false);
         });
-      } else {
-        setLoading(false);
-      }
-    }).catch(() => {
-      if (isMounted) setLoading(false);
-    });
+      })
+      .catch((err) => {
+        console.error('Erro ao verificar sessão:', err);
+        if (isMounted) clearAuthState();
+      });
 
-    // Ouvinte de mudanças na autenticação
+    // Escuta mudanças de estado no Supabase Auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
 
       if (event === 'SIGNED_OUT' || !currentSession) {
-        setSession(null);
-        setUser(null);
-        setOrganizationId(null);
-        setLoading(false);
+        clearAuthState();
         return;
       }
 
       setSession(currentSession);
-      setUser(currentSession.user ?? null);
+      setUser(currentSession.user);
 
       if (currentSession.user) {
         await fetchOrganization(currentSession.user.id);
@@ -93,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
-      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, []);
@@ -103,16 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await supabase.auth.signOut();
     } catch (error) {
-      console.error('Erro ao deslogar:', error);
+      console.error('Erro ao realizar logout:', error);
     } finally {
-      // Limpeza forçada local
       localStorage.clear();
       sessionStorage.clear();
-      setUser(null);
-      setSession(null);
-      setOrganizationId(null);
-      setLoading(false);
-      // Redireciona e força recarga da página limpa
+      clearAuthState();
       window.location.href = '/';
     }
   };
