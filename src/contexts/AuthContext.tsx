@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!error && data) {
         if (data.status === 'suspended') {
           alert('Sua conta está suspensa.');
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
           clearAuthState();
           return;
         }
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Obtém sessão inicial tratando falhas de credencial/token
+    // 1. Carga inicial de sessão
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         if (!isMounted) return;
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) clearAuthState();
       });
 
-    // Escuta mudanças de estado no Supabase Auth
+    // 2. Ouvinte de estado (Sem redirecionamentos abruptos de janela aqui)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
 
@@ -99,17 +99,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // 3. Método de Logout Isolado e Seguro
   const signOut = async () => {
     setLoading(true);
+
     try {
-      await supabase.auth.signOut();
+      // Faz o logout apenas no escopo local para evitar travamento de requisição de rede
+      await supabase.auth.signOut({ scope: 'local' });
     } catch (error) {
-      console.error('Erro ao realizar logout:', error);
+      console.error('Erro ao realizar logout no Supabase:', error);
     } finally {
-      localStorage.clear();
+      // Limpa cirurgicamente apenas as chaves do Supabase no LocalStorage
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key);
+        }
+      });
       sessionStorage.clear();
+
+      // Zera os estados do React
       clearAuthState();
-      window.location.href = '/';
+
+      // Substitui o histórico e recarrega na raiz limpa
+      window.location.replace('/');
     }
   };
 
