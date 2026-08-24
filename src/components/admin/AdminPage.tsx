@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, FileText, ShieldAlert, Loader2, Search, ExternalLink, ArrowLeft } from 'lucide-react';
+import { Building2, Users, FileText, ShieldAlert, Loader2, Search, ArrowLeft, Trash2, CalendarPlus, Power } from 'lucide-react';
 
 interface OrganizationAdmin {
   id: string;
   name: string;
   owner_id: string;
   created_at: string;
-  owner_email?: string;
+  status: 'active' | 'trial' | 'suspended';
+  trial_ends_at: string | null;
   total_clients?: number;
   total_orders?: number;
-  status?: 'active' | 'suspended';
 }
 
 export function AdminPage() {
@@ -26,7 +26,6 @@ export function AdminPage() {
   const fetchAdminData = async () => {
     setLoading(true);
     try {
-      // 1. Busca todas as organizações
       const { data: orgs, error: orgsError } = await supabase
         .from('organizations')
         .select('*')
@@ -34,11 +33,9 @@ export function AdminPage() {
 
       if (orgsError) throw orgsError;
 
-      // 2. Busca contadores globais
       const { count: clientsCount } = await supabase.from('clients').select('*', { count: 'exact', head: true });
       const { count: ordersCount } = await supabase.from('work_orders').select('*', { count: 'exact', head: true });
 
-      // 3. Agrupa contadores por loja
       const { data: clientsData } = await supabase.from('clients').select('tenant_id');
       const { data: ordersData } = await supabase.from('work_orders').select('tenant_id');
 
@@ -47,9 +44,10 @@ export function AdminPage() {
         const orderCount = ordersData?.filter((o) => o.tenant_id === org.id).length || 0;
         return {
           ...org,
+          status: org.status || 'active',
+          trial_ends_at: org.trial_ends_at,
           total_clients: clientCount,
           total_orders: orderCount,
-          status: 'active',
         };
       });
 
@@ -63,6 +61,58 @@ export function AdminPage() {
       console.error('Erro ao carregar dados administrativos:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Altera status (Ativo, Suspender, Trial)
+  const handleUpdateStatus = async (orgId: string, newStatus: 'active' | 'trial' | 'suspended') => {
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ status: newStatus })
+        .eq('id', orgId);
+
+      if (error) throw error;
+      setOrganizations((prev) => prev.map((o) => (o.id === orgId ? { ...o, status: newStatus } : o)));
+    } catch (err: any) {
+      alert('Erro ao atualizar status: ' + err.message);
+    }
+  };
+
+  // Adiciona +30 dias de validade
+  const handleAddDays = async (orgId: string, currentTrialEnds: string | null) => {
+    try {
+      const baseDate = currentTrialEnds ? new Date(currentTrialEnds) : new Date();
+      baseDate.setDate(baseDate.getDate() + 30);
+
+      const { error } = await supabase
+        .from('organizations')
+        .update({ trial_ends_at: baseDate.toISOString(), status: 'active' })
+        .eq('id', orgId);
+
+      if (error) throw error;
+      setOrganizations((prev) =>
+        prev.map((o) => (o.id === orgId ? { ...o, trial_ends_at: baseDate.toISOString(), status: 'active' } : o))
+      );
+      alert('Mais 30 dias adicionados com sucesso!');
+    } catch (err: any) {
+      alert('Erro ao estender prazo: ' + err.message);
+    }
+  };
+
+  // Exclusão completa da conta
+  const handleDeleteOrganization = async (orgId: string, name: string) => {
+    const confirmDelete = confirm(`ATENÇÃO: Deseja apagar permanentemente a loja "${name}" e todos os seus clientes e OSs?`);
+    if (!confirmDelete) return;
+
+    try {
+      const { error } = await supabase.rpc('delete_organization_cascade', { org_id: orgId });
+      if (error) throw error;
+
+      setOrganizations((prev) => prev.filter((o) => o.id !== orgId));
+      alert(`Loja "${name}" removida com sucesso.`);
+    } catch (err: any) {
+      alert('Erro ao excluir conta: ' + err.message);
     }
   };
 
@@ -83,7 +133,6 @@ export function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-10">
       <div className="max-w-7xl mx-auto">
-        {/* Cabeçalho */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-blue-600/20 text-blue-500 rounded-xl">
@@ -91,7 +140,7 @@ export function AdminPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold">Painel do Fundador (SaaS Admin)</h1>
-              <p className="text-sm text-slate-400">Gestão global de lojistas, limites e uso da plataforma</p>
+              <p className="text-sm text-slate-400">Controle total de licenças, acessos e remoção de contas</p>
             </div>
           </div>
 
@@ -103,9 +152,9 @@ export function AdminPage() {
           </a>
         </div>
 
-        {/* Métricas Principais */}
+        {/* Métricas */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-lg">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-center gap-4">
             <div className="p-3.5 bg-blue-500/10 text-blue-400 rounded-xl">
               <Building2 size={26} />
             </div>
@@ -115,7 +164,7 @@ export function AdminPage() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-lg">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-center gap-4">
             <div className="p-3.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
               <Users size={26} />
             </div>
@@ -125,7 +174,7 @@ export function AdminPage() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-lg">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-center gap-4">
             <div className="p-3.5 bg-amber-500/10 text-amber-400 rounded-xl">
               <FileText size={26} />
             </div>
@@ -136,10 +185,10 @@ export function AdminPage() {
           </div>
         </div>
 
-        {/* Tabela com Filtro */}
+        {/* Tabela com Filtro e Ações */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
           <div className="p-6 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h2 className="text-lg font-bold">Assistências Cadastradas</h2>
+            <h2 className="text-lg font-bold">Gerenciar Assinantes</h2>
 
             <div className="relative min-w-[280px]">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
@@ -158,61 +207,102 @@ export function AdminPage() {
               <thead className="bg-slate-800/60 text-xs uppercase text-slate-400 border-b border-slate-800">
                 <tr>
                   <th className="py-4 px-6">Nome da Assistência</th>
-                  <th className="py-4 px-6">Uso (Clientes / OS)</th>
-                  <th className="py-4 px-6">Data de Cadastro</th>
+                  <th className="py-4 px-6">Uso</th>
+                  <th className="py-4 px-6">Validade / Licença</th>
                   <th className="py-4 px-6">Status</th>
-                  <th className="py-4 px-6 text-right">Ação</th>
+                  <th className="py-4 px-6 text-right">Ações de Admin</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {filteredOrgs.map((org) => (
-                  <tr key={org.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-4 px-6">
-                      <div className="font-semibold text-white text-base">{org.name}</div>
-                      <div className="text-xs font-mono text-slate-500 mt-0.5">ID: {org.id}</div>
-                    </td>
+                {filteredOrgs.map((org) => {
+                  const daysLeft = org.trial_ends_at
+                    ? Math.ceil((new Date(org.trial_ends_at).getTime() - new Date().getTime()) / (1000 * 3600 * 24))
+                    : null;
 
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md text-slate-300">
-                          👥 {org.total_clients} clientes
-                        </span>
-                        <span className="text-xs bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md text-slate-300">
-                          📋 {org.total_orders} OS
-                        </span>
-                      </div>
-                    </td>
+                  return (
+                    <tr key={org.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-4 px-6">
+                        <div className="font-semibold text-white text-base">{org.name}</div>
+                        <div className="text-xs font-mono text-slate-500 mt-0.5">ID: {org.id}</div>
+                      </td>
 
-                    <td className="py-4 px-6 text-slate-400">
-                      {new Date(org.created_at).toLocaleDateString('pt-BR', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                      })}
-                    </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md">
+                            👥 {org.total_clients}
+                          </span>
+                          <span className="text-xs bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md">
+                            📋 {org.total_orders}
+                          </span>
+                        </div>
+                      </td>
 
-                    <td className="py-4 px-6">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        Ativo
-                      </span>
-                    </td>
+                      <td className="py-4 px-6">
+                        {daysLeft !== null ? (
+                          <span className={`text-xs font-semibold ${daysLeft > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {daysLeft > 0 ? `${daysLeft} dias restantes` : 'Expirado'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-500">Ilimitado</span>
+                        )}
+                      </td>
 
-                    <td className="py-4 px-6 text-right">
-                      <button
-                        title="Detalhes da conta"
-                        onClick={() => alert(`ID da conta: ${org.id}\nProprietário ID: ${org.owner_id}`)}
-                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
-                      >
-                        <ExternalLink size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-4 px-6">
+                        {org.status === 'active' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            Ativo
+                          </span>
+                        )}
+                        {org.status === 'suspended' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                            Bloqueado
+                          </span>
+                        )}
+                        {org.status === 'trial' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            Testes
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {/* Botão de Estender +30 Dias */}
+                          <button
+                            title="Adicionar +30 dias de uso"
+                            onClick={() => handleAddDays(org.id, org.trial_ends_at)}
+                            className="p-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg border border-slate-700 transition-colors"
+                          >
+                            <CalendarPlus size={16} />
+                          </button>
+
+                          {/* Botão de Bloquear / Desbloquear */}
+                          <button
+                            title={org.status === 'suspended' ? 'Ativar Conta' : 'Bloquear Conta'}
+                            onClick={() => handleUpdateStatus(org.id, org.status === 'suspended' ? 'active' : 'suspended')}
+                            className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg border border-slate-700 transition-colors"
+                          >
+                            <Power size={16} />
+                          </button>
+
+                          {/* Botão de Deletar Conta */}
+                          <button
+                            title="Excluir Conta Permanentemente"
+                            onClick={() => handleDeleteOrganization(org.id, org.name)}
+                            className="p-2 bg-slate-800 hover:bg-rose-900/50 text-rose-400 rounded-lg border border-slate-700 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {filteredOrgs.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-slate-500">
-                      Nenhuma assistência encontrada para o filtro.
+                      Nenhuma assistência encontrada.
                     </td>
                   </tr>
                 )}
