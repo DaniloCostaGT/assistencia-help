@@ -5,6 +5,7 @@ import { WorkOrdersPage } from '@/components/workorders/WorkOrdersPage';
 import { PartsPage } from '@/components/parts/PartsPage';
 import { FaqPage } from '@/components/faq/FaqPage';
 import { ClientsPage } from '@/components/clients/ClientsPage';
+import { AdminPage } from '@/components/admin/AdminPage';
 import { NewClientWorkOrderModal } from '@/components/workorders/NewClientWorkOrderModal';
 import { useWorkOrders } from '@/hooks/useWorkOrders';
 import { Client } from '@/types';
@@ -12,6 +13,8 @@ import { TabKey } from '@/types/nav';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AuthPage } from '@/components/auth/AuthPage';
 import { Loader2 } from 'lucide-react';
+
+const ADMIN_EMAIL = 'danilo25.costa@hotmail.com';
 
 const TAB_CONTENT: Record<TabKey, { title: string; subtitle: string }> = {
   'work-orders': { title: 'Ordens de Serviço', subtitle: 'Acompanhe os reparos do recebimento à entrega.' },
@@ -26,6 +29,8 @@ function MainContent() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { addWorkOrder } = useWorkOrders();
 
+  const currentPath = window.location.pathname;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
@@ -36,6 +41,16 @@ function MainContent() {
 
   if (!user) {
     return <AuthPage />;
+  }
+
+  // Intercepta a rota /admin para exibir o painel de gestão SaaS
+  if (currentPath === '/admin') {
+    if (user.email === ADMIN_EMAIL) {
+      return <AdminPage />;
+    } else {
+      window.location.href = '/';
+      return null;
+    }
   }
 
   const current = TAB_CONTENT[activeTab];
