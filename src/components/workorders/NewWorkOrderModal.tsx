@@ -1,9 +1,10 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useEffect, useRef } from 'react';
 import { Loader2, Lock } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { EntryChecklist } from '@/components/workorders/EntryChecklist';
 import { PatternLock } from '@/components/workorders/PatternLock';
 import { Client, DEFAULT_CHECKLIST, WorkOrderChecklist } from '@/types';
+import { buscarAparelhos } from '@/lib/supabase';
 
 interface NewWorkOrderModalProps {
   clients: Client[];
@@ -30,6 +31,34 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
   const [patternLock, setPatternLock] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Estados para autocompletar aparelhos
+  const [sugestoesAparelhos, setSugestoesAparelhos] = useState<{ id: string; marca: string; modelo: string }[]>([]);
+  const [mostrandoSugestoes, setMostrandoSugestoes] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Fecha o dropdown ao clicar fora do componente
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setMostrandoSugestoes(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleDeviceModelChange = async (val: string) => {
+    setDeviceModel(val);
+    if (val.trim().length >= 2) {
+      const resultados = await buscarAparelhos(val);
+      setSugestoesAparelhos(resultados);
+      setMostrandoSugestoes(true);
+    } else {
+      setSugestoesAparelhos([]);
+      setMostrandoSugestoes(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -76,17 +105,39 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
               ))}
             </select>
           </div>
-          <div>
+
+          {/* Campo com Autocompletar */}
+          <div ref={wrapperRef} className="relative">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Modelo do Aparelho <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={deviceModel}
-              onChange={(e) => setDeviceModel(e.target.value)}
-              placeholder="Ex.: iPhone 11"
+              onChange={(e) => handleDeviceModelChange(e.target.value)}
+              onFocus={() => deviceModel.trim().length >= 2 && setMostrandoSugestoes(true)}
+              placeholder="Ex.: iPhone 11, Galaxy A54..."
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
             />
+
+            {/* Menu suspenso de sugestões */}
+            {mostrandoSugestoes && sugestoesAparelhos.length > 0 && (
+              <ul className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl py-1 text-sm">
+                {sugestoesAparelhos.map((item) => (
+                  <li
+                    key={item.id}
+                    onClick={() => {
+                      setDeviceModel(`${item.marca} ${item.modelo}`);
+                      setMostrandoSugestoes(false);
+                    }}
+                    className="px-3.5 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700/40 last:border-none transition-colors"
+                  >
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">{item.marca}</span> {item.modelo}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
