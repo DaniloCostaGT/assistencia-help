@@ -28,19 +28,19 @@ function MainContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('work-orders');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { addWorkOrder } = useWorkOrders();
-  const [path, setPath] = useState(window.location.pathname);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
-  // Escuta alterações na URL sem forçar o reload da janela
   useEffect(() => {
-    const handlePopState = () => setPath(window.location.pathname);
+    const handlePopState = () => setCurrentPath(window.location.pathname);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white gap-4">
         <Loader2 className="animate-spin text-blue-500" size={32} />
+        <p className="text-xs text-slate-400">Carregando sessão...</p>
       </div>
     );
   }
@@ -49,22 +49,20 @@ function MainContent() {
     return <AuthPage />;
   }
 
-  // Tratamento seguro da rota /admin
-  if (path === '/admin') {
+  if (currentPath === '/admin') {
     const isUserAdmin = user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     if (isUserAdmin) {
       return <AdminPage />;
     }
 
-    // Se não for admin, altera a URL sem dar re-load na página inteira
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
-        <p className="text-rose-400 font-medium mb-4">Acesso não autorizado para esta conta ({user.email}).</p>
+        <p className="text-rose-400 font-medium mb-4">Acesso restrito para {user.email}.</p>
         <button
           onClick={() => {
             window.history.pushState({}, '', '/');
-            setPath('/');
+            setCurrentPath('/');
           }}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
         >
