@@ -1,5 +1,6 @@
-import { Smartphone, Wifi, Camera, Fingerprint, Power, PowerOff, Zap } from 'lucide-react';
+import { Smartphone, Wifi, Camera, Fingerprint, Power, PowerOff, Zap, AlertTriangle } from 'lucide-react';
 import { PowerStatus, WorkOrderChecklist } from '@/types';
+import { useState } from 'react';
 
 interface EntryChecklistProps {
   checklist: WorkOrderChecklist;
@@ -20,13 +21,48 @@ const POWER_OPTIONS: { key: PowerStatus; label: string; icon: typeof Power }[] =
 ];
 
 export function EntryChecklist({ checklist, onChange }: EntryChecklistProps) {
+  const [untestable, setUntestable] = useState(false);
+
   const toggle = (key: (typeof TOGGLE_ITEMS)[number]['key']) => {
+    if (untestable) return;
     onChange({ ...checklist, [key]: !checklist[key] });
+  };
+
+  const handleUntestableToggle = (checked: boolean) => {
+    setUntestable(checked);
+    if (checked) {
+      // Marca todos os testes como false (com defeito/não testado) e adiciona observação
+      const aviso = "Aparelho com tela quebrada/sem imagem - Impossibilitado de testar outros componentes.";
+      const notasAtuais = checklist.body_scratches ? `${checklist.body_scratches} | ${aviso}` : aviso;
+
+      onChange({
+        ...checklist,
+        touchscreen: false,
+        wifi: false,
+        cameras: false,
+        biometrics: false,
+        body_scratches: notasAtuais,
+      });
+    }
   };
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Botão de Alerta para Aparelho Impossibilitado de Testar */}
+      <label className="flex items-center gap-2.5 p-3 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 cursor-pointer transition-colors">
+        <input
+          type="checkbox"
+          checked={untestable}
+          onChange={(e) => handleUntestableToggle(e.target.checked)}
+          className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+        />
+        <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
+        <span className="text-xs font-medium text-amber-900 dark:text-amber-200">
+          Tela quebrada / Sem imagem (Impossível testar funções no recebimento)
+        </span>
+      </label>
+
+      <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 ${untestable ? 'opacity-50 pointer-events-none' : ''}`}>
         {TOGGLE_ITEMS.map(({ key, label, icon: Icon }) => {
           const isOk = checklist[key];
           return (
@@ -34,6 +70,7 @@ export function EntryChecklist({ checklist, onChange }: EntryChecklistProps) {
               key={key}
               type="button"
               onClick={() => toggle(key)}
+              disabled={untestable}
               className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all duration-150 ${
                 isOk
                   ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
