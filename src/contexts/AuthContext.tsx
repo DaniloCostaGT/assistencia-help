@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!error && data) {
         if (data.status === 'suspended') {
-          alert('Sua conta está suspensa. Entre em contato com o suporte.');
+          alert('Sua conta está suspensa.');
           await supabase.auth.signOut();
           setOrganizationId(null);
           return;
@@ -46,56 +46,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Safety Timeout: Libera o carregamento em no máximo 3 segundos
-    const timer = setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 3000);
-
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!isMounted) return;
-
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          await fetchOrganization(session.user.id);
-        }
-      } catch (err) {
-        console.error('Erro na inicialização da sessão:', err);
-      } finally {
-        if (isMounted) setLoading(false);
+    // Timeout de segurança: NUNCA deixa a tela travada no spinner por mais de 2.5s
+    const safetyTimer = setTimeout(() => {
+      if (isMounted && loading) {
+        setLoading(false);
       }
-    };
+    }, 2500);
 
-    initAuth();
+    // Inicialização da sessão
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
+      setSession(session);
+      setUser(session?.user ?? null);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        fetchOrganization(session.user.id).finally(() => {
+          if (isMounted) setLoading(false);
+        });
+      } else {
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (isMounted) setLoading(false);
+    });
+
+    // Ouvinte de mudanças na autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
 
-      if (event === 'SIGNED_OUT') {
-        setUser(null);
+      if (event === 'SIGNED_OUT' || !currentSession) {
         setSession(null);
+        setUser(null);
         setOrganizationId(null);
         setLoading(false);
         return;
       }
 
-      setSession(session);
-      setUser(session?.user ?? null);
+      setSession(currentSession);
+      setUser(currentSession.user ?? null);
 
-      if (session?.user) {
-        await fetchOrganization(session.user.id);
-      } else {
-        setOrganizationId(null);
+      if (currentSession.user) {
+        await fetchOrganization(currentSession.user.id);
       }
       setLoading(false);
     });
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, []);
@@ -104,14 +102,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       await supabase.auth.signOut();
-    } catch (err) {
-      console.error('Erro ao deslogar:', err);
+    } catch (error) {
+      console.error('Erro ao deslogar:', error);
     } finally {
+      // Limpeza forçada local
+      localStorage.clear();
+      sessionStorage.clear();
       setUser(null);
       setSession(null);
       setOrganizationId(null);
       setLoading(false);
-      // Redireciona para a raiz para limpar eventuais rotas
+      // Redireciona e força recarga da página limpa
       window.location.href = '/';
     }
   };
