@@ -1,5 +1,5 @@
 import { FormEvent, useState, useEffect, useRef } from 'react';
-import { Loader2, Lock } from 'lucide-react';
+import { Loader2, Lock, Clock } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { EntryChecklist } from '@/components/workorders/EntryChecklist';
 import { PatternLock } from '@/components/workorders/PatternLock';
@@ -17,10 +17,10 @@ interface NewWorkOrderModalProps {
     estimated_price: number;
     checklist: WorkOrderChecklist;
     pattern_lock: number[] | null;
+    entry_time: string;
   }) => Promise<unknown>;
 }
 
-// Função utilitária para aplicar a máscara no padrão de telefone/WhatsApp brasileiro
 function formatPhone(value: string): string {
   const numbers = value.replace(/\D/g, '');
   const truncated = numbers.slice(0, 11);
@@ -37,24 +37,31 @@ function formatPhone(value: string): string {
   return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
 }
 
+// Retorna data e hora atual no formato padrão para input datetime-local (YYYY-MM-DDTHH:MM)
+function getCurrentDateTimeLocal(): string {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  return localISOTime;
+}
+
 export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderModalProps) {
   const [clientId, setClientId] = useState('');
   const [deviceModel, setDeviceModel] = useState('');
   const [imeiSerial, setImeiSerial] = useState('');
   const [reportedFault, setReportedFault] = useState('');
   const [estimatedPrice, setEstimatedPrice] = useState('');
+  const [entryTime, setEntryTime] = useState(getCurrentDateTimeLocal());
   const [checklist, setChecklist] = useState<WorkOrderChecklist>(DEFAULT_CHECKLIST);
   const [hasPattern, setHasPattern] = useState(false);
   const [patternLock, setPatternLock] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para autocompletar aparelhos
   const [sugestoesAparelhos, setSugestoesAparelhos] = useState<{ id: string; marca: string; modelo: string }[]>([]);
   const [mostrandoSugestoes, setMostrandoSugestoes] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Fecha o dropdown ao clicar fora do componente
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -94,6 +101,7 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
         estimated_price: parseFloat(estimatedPrice) || 0,
         checklist,
         pattern_lock: hasPattern && patternLock.length > 0 ? patternLock : null,
+        entry_time: new Date(entryTime).toISOString(),
       });
       onClose();
     } catch (err) {
@@ -123,7 +131,6 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
             </select>
           </div>
 
-          {/* Campo com Autocompletar */}
           <div ref={wrapperRef} className="relative">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Modelo do Aparelho <span className="text-rose-500">*</span>
@@ -138,7 +145,6 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
               required
             />
 
-            {/* Menu suspenso de sugestões */}
             {mostrandoSugestoes && sugestoesAparelhos.length > 0 && (
               <ul className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl py-1 text-sm">
                 {sugestoesAparelhos.map((item) => (
@@ -158,7 +164,19 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Clock size={14} className="text-blue-500" /> Hora de Entrada
+            </label>
+            <input
+              type="datetime-local"
+              value={entryTime}
+              onChange={(e) => setEntryTime(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               IMEI / Número de Série
@@ -171,6 +189,7 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Preço Estimado (R$)
