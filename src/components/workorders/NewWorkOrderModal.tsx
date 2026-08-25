@@ -20,6 +20,23 @@ interface NewWorkOrderModalProps {
   }) => Promise<unknown>;
 }
 
+// Função utilitária para aplicar a máscara no padrão de telefone/WhatsApp brasileiro
+function formatPhone(value: string): string {
+  const numbers = value.replace(/\D/g, '');
+  const truncated = numbers.slice(0, 11);
+
+  if (truncated.length <= 2) {
+    return truncated.length ? `(${truncated}` : '';
+  }
+  if (truncated.length <= 6) {
+    return `(${truncated.slice(0, 2)}) ${truncated.slice(2)}`;
+  }
+  if (truncated.length <= 10) {
+    return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 6)}-${truncated.slice(6)}`;
+  }
+  return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
+}
+
 export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderModalProps) {
   const [clientId, setClientId] = useState('');
   const [deviceModel, setDeviceModel] = useState('');
@@ -100,7 +117,7 @@ export function NewWorkOrderModal({ clients, onClose, onSubmit }: NewWorkOrderMo
               <option value="">Sem cadastro / Sem cliente selecionado</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} - {c.whatsapp}
+                  {c.name} - {formatPhone(c.whatsapp)}
                 </option>
               ))}
             </select>
