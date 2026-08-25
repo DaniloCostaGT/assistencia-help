@@ -4,33 +4,69 @@ import { Client } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function useClients() {
-  const { organizationId } = useAuth();
+  const { user, organizationId: contextOrgId } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Função auxiliar para garantir a obtenção do ID da organização/tenant
+  const getOrFetchOrganizationId = async (): Promise<string | null> => {
+    if (contextOrgId) return contextOrgId;
+    if (!user) return null;
+
+    // Tenta buscar no banco a organização do usuário logado
+    let { data: org } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+
+    if (org) return org.id;
+
+    // Se a organização não existir na tabela, cria uma automaticamente
+    const defaultName = `Assistência de ${user.email?.split('@')[0] || 'Técnico'}`;
+    const { data: newOrg, error: createError } = await supabase
+      .from('organizations')
+      .insert({
+        name: defaultName,
+        owner_id: user.id,
+      })
+      .select('id')
+      .single();
+
+    if (createError || !newOrg) return null;
+    return newOrg.id;
+  };
+
   const fetchClients = useCallback(async () => {
-    if (!organizationId) {
-      setClients([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('tenant_id', organizationId)
-      .order('created_at', { ascending: false });
+    try {
+      const orgId = await getOrFetchOrganizationId();
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setClients(data ?? []);
-      setError(null);
+      if (!orgId) {
+        setClients([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('tenant_id', orgId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setClients(data ?? []);
+        setError(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao buscar clientes.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [organizationId]);
+  }, [user, contextOrgId]);
 
   useEffect(() => {
     fetchClients();
@@ -38,7 +74,9 @@ export function useClients() {
 
   const addClient = useCallback(
     async (client: Omit<Client, 'id' | 'created_at'>) => {
-      if (!organizationId) {
+      const orgId = await getOrFetchOrganizationId();
+
+      if (!orgId) {
         throw new Error('Identificador da assistência não encontrado. Faça login novamente.');
       }
 
@@ -46,7 +84,7 @@ export function useClients() {
         .from('clients')
         .insert({
           ...client,
-          tenant_id: organizationId,
+          tenant_id: orgId,
         })
         .select()
         .maybeSingle();
@@ -55,7 +93,7 @@ export function useClients() {
       if (data) setClients((prev) => [data, ...prev]);
       return data;
     },
-    [organizationId]
+    [user, contextOrgId]
   );
 
   return { clients, loading, error, addClient, refetch: fetchClients };
